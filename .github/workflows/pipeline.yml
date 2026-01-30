@@ -47,3 +47,40 @@ jobs:
       - name: Executar Scan de Vulnerabilidades (SCA)
         # Falha se encontrar vulnerabilidade CRITICA ou ALTA
         run: trivy fs . --severity HIGH,CRITICAL --exit-code 1
+# ... (mantenha os jobs anteriores) ...
+
+  deploy:
+    name: Deploy em Producao
+    runs-on: [self-hosted, local-lab]
+    needs: sca-scan # Só faz deploy se a segurança passar!
+    
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Build da Imagem Docker
+        run: |
+          docker build -t minha-app:latest .
+
+      - name: Transferir e Rodar no Servidor de Produção
+        run: |
+          # Salva a imagem em um arquivo para transferir
+          docker save minha-app:latest > minha-app.tar
+          
+          # Envia para a VM de Produção (usando o IP que configuramos)
+          scp minha-app.tar vagrant@192.168.56.20:/home/vagrant/
+          
+          # Comandos remotos para carregar e rodar
+          ssh vagrant@192.168.56.20 << 'EOF'
+            # Para o container antigo se existir
+            docker rm -f webapp || true
+            
+            # Carrega a nova imagem
+            docker load < /home/vagrant/minha-app.tar
+            
+            # Roda o novo container com a variável de ambiente segura
+            # Em um cenário real, o valor viria do Vault
+            docker run -d --name webapp -p 5000:5000 -e APP_PASSWORD=S3nh4Sup3rS3gur4 minha-app:latest
+            
+            rm /home/vagrant/minha-app.tar
+          EOF
