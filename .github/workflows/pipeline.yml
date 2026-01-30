@@ -68,7 +68,6 @@ jobs:
 
       - name: Build da Imagem Docker
         run: |
-          export DOCKER_BUILDKIT=1
           docker build -t minha-app:latest .
 
       # --- NOVO PASSO: SCAN DE IMAGEM ---
