@@ -1,5 +1,5 @@
 # Imagem base leve e segura (Python Slim)
-FROM 3.13-slim
+FROM python:3.13-slim
 
 # Cria usuário não-root (Prática de Segurança: nunca rode como root!)
 RUN useradd -m appuser
