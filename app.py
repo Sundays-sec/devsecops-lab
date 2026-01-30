@@ -12,9 +12,11 @@ def login():
     username = request.form['username']
     password = request.form['password']
     
-    # ❌ VULNERABILIDADE: Senha fixa no código (Hardcoded Credential)
-    # O SonarQube DEVE pegar isso.
-    if username == "admin" and password == "123456": 
+    # ✅ CORREÇÃO: Buscando do Ambiente (Environment Variable)
+    # Se a variável não existir, usa None (falha segura)
+    safe_password = os.getenv('APP_PASSWORD')
+    
+    if username == "admin" and password == safe_password:
         return "Acesso Permitido"
     else:
         return "Acesso Negado"
