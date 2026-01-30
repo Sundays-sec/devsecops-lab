@@ -1,0 +1,25 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # Job 1: SAST (Static Application Security Testing)
+  security-scan:
+    name: Analise SonarQube
+    runs-on: [self-hosted, local-lab] # ⚠️ Importante: Usa seu PC, não a nuvem
+    
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Importante para análises precisas
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          # Se der erro de certificado SSL (comum em Lab), descomente abaixo:
+          # SONAR_SCANNER_OPTS: "-Dsonar.verify.ssl=false"
