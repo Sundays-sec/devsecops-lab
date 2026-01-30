@@ -50,7 +50,7 @@ jobs:
 # ... (mantenha os jobs anteriores) ...
 
   deploy:
-    name: Deploy em Producao
+    name: Build, Scan e Deploy
     runs-on: [self-hosted, local-lab]
     needs: sca-scan
     
@@ -59,26 +59,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Buscar Senha no Vault
-        # Usamos o comando curl para falar com a API do Vault
         run: |
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
           export VAULT_ADDR="${{ secrets.VAULT_ADDR }}"
-          # Busca o valor da chave 'password' no path 'webapp/db'
           DB_PASS=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/secret/data/webapp/db | jq -r '.data.data.password')
-          # Salva mascarado no log do GitHub por segurança
           echo "::add-mask::$DB_PASS"
           echo "APP_DB_PASS=$DB_PASS" >> $GITHUB_ENV
 
-      - name: Build e Deploy
+      - name: Build da Imagem Docker
         run: |
           docker build -t minha-app:latest .
+
+      # --- NOVO PASSO: SCAN DE IMAGEM ---
+      - name: Scan de Imagem Docker (Trivy)
+        run: |
+          # Escaneia a imagem local 'minha-app:latest'
+          # --exit-code 1 faz o pipeline falhar se encontrar algo CRITICAL
+          trivy image --severity CRITICAL --exit-code 1 minha-app:latest
+
+      - name: Transferir e Rodar no Servidor de Produção
+        run: |
           docker save minha-app:latest > minha-app.tar
           scp minha-app.tar vagrant@192.168.56.20:/home/vagrant/
           
           ssh vagrant@192.168.56.20 << EOF
             docker rm -f webapp || true
             docker load < /home/vagrant/minha-app.tar
-            # Agora usamos a variável vinda do Vault!
             docker run -d --name webapp -p 5000:5000 -e APP_PASSWORD=${{ env.APP_DB_PASS }} minha-app:latest
             rm /home/vagrant/minha-app.tar
           EOF
