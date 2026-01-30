@@ -23,3 +23,27 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           # Se der erro de certificado SSL (comum em Lab), descomente abaixo:
           # SONAR_SCANNER_OPTS: "-Dsonar.verify.ssl=false"
+
+  # Job 2: SCA (Software Composition Analysis) - Dependências
+  sca-scan:
+    name: Analise de Dependencias (Trivy)
+    runs-on: [self-hosted, local-lab]
+    needs: security-scan # Só roda se o SAST passar
+    
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Instalar Trivy
+        run: |
+          if ! command -v trivy &> /dev/null; then
+             sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+             wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+             echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+             sudo apt-get update
+             sudo apt-get install trivy -y
+          fi
+
+      - name: Executar Scan de Vulnerabilidades (SCA)
+        # Falha se encontrar vulnerabilidade CRITICA ou ALTA
+        run: trivy fs . --severity HIGH,CRITICAL --exit-code 1
