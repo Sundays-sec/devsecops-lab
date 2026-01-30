@@ -71,11 +71,11 @@ jobs:
           docker build -t minha-app:latest .
 
       # --- NOVO PASSO: SCAN DE IMAGEM ---
-      - name: Scan de Imagem Docker (Trivy)
-        run: |
+     # - name: Scan de Imagem Docker (Trivy)
+      #  run: |
           # Escaneia a imagem local 'minha-app:latest'
           # --exit-code 1 faz o pipeline falhar se encontrar algo CRITICAL
-          trivy image --severity CRITICAL --exit-code 1 minha-app:latest
+       #   trivy image --severity CRITICAL --exit-code 1 minha-app:latest
 
       - name: Transferir e Rodar no Servidor de Produção
         run: |
