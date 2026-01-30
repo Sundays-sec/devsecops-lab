@@ -88,3 +88,29 @@ jobs:
             docker run -d --name webapp -p 5000:5000 -e APP_PASSWORD=${{ env.APP_DB_PASS }} minha-app:latest
             rm /home/vagrant/minha-app.tar
           EOF
+        # ------DAST-----------------------------
+  dast-scan:
+    name: Teste Dinamico (OWASP ZAP)
+    runs-on: [self-hosted, local-lab]
+    needs: deploy # Só roda depois que a app está no ar!
+    
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Executar OWASP ZAP Baseline Scan
+        run: |
+          # Rodamos o ZAP via Docker para não precisar instalar nada no Host
+          # Ele vai atacar o IP da sua VM de Produção
+          docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://192.168.56.20:5000 \
+            -g gen.conf \
+            -r report_html.html || true 
+            # O '|| true' evita que o pipeline pare se encontrar alertas baixos, 
+            # para que possamos ver o relatório.
+            
+      - name: Upload do Relatorio DAST
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-dast
+          path: report_html.html
