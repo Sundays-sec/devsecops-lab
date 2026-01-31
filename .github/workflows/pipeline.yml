@@ -58,7 +58,7 @@ jobs:
         run: trivy fs . --severity HIGH,CRITICAL --exit-code 1
 # ... (mantenha os jobs anteriores) ...
 
- deploy:
+  deploy:
     name: Build, Scan e Deploy Orchestrado
     runs-on: [self-hosted, local-lab]
     needs: sca-scan
