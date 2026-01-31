@@ -21,6 +21,15 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+# ... (mantenha os passos anteriores: Checkout e SonarQube Scan) ...
+
+      - name: SonarQube Quality Gate Check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        # Se o Quality Gate falhar, este passo retorna erro e para o pipeline.
           # Se der erro de certificado SSL (comum em Lab), descomente abaixo:
           # SONAR_SCANNER_OPTS: "-Dsonar.verify.ssl=false"
 
