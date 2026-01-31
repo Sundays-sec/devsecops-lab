@@ -58,8 +58,8 @@ jobs:
         run: trivy fs . --severity HIGH,CRITICAL --exit-code 1
 # ... (mantenha os jobs anteriores) ...
 
-  deploy:
-    name: Build, Scan e Deploy
+ deploy:
+    name: Build, Scan e Deploy Orchestrado
     runs-on: [self-hosted, local-lab]
     needs: sca-scan
     
@@ -77,56 +77,61 @@ jobs:
 
       - name: Build da Imagem Docker
         run: |
+          export DOCKER_BUILDKIT=1
           docker build -t minha-app:latest .
 
-      # --- NOVO PASSO: SCAN DE IMAGEM ---
       - name: Scan de Imagem Docker (Trivy)
         run: |
-          # Escaneia a imagem local 'minha-app:latest'
-          # --exit-code 1 faz o pipeline falhar se encontrar algo CRITICAL
           trivy image --severity CRITICAL --exit-code 1 minha-app:latest
 
-      - name: Transferir e Rodar no Servidor de Produção
+      - name: Deploy em Produção (Docker Compose)
         run: |
+          # 1. Salva a imagem
           docker save minha-app:latest > minha-app.tar
-          scp minha-app.tar vagrant@192.168.56.20:/home/vagrant/
           
+          # 2. Prepara diretório de config na VM
+          ssh vagrant@192.168.56.20 "mkdir -p /home/vagrant/app/nginx /home/vagrant/app/certs"
+
+          # 3. Transfere Arquivos (Imagem, Config Nginx, Docker Compose)
+          scp minha-app.tar vagrant@192.168.56.20:/home/vagrant/
+          scp nginx/default.conf vagrant@192.168.56.20:/home/vagrant/app/nginx/
+          scp docker-compose.prod.yml vagrant@192.168.56.20:/home/vagrant/app/
+
+          # 4. Executa Deploy Remoto
           ssh vagrant@192.168.56.20 << EOF
-            docker rm -f webapp || true
+            cd /home/vagrant/app
+            
+            # Gera Certificado SSL Autoassinado (Válido por 365 dias)
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+              -keyout certs/nginx.key \
+              -out certs/nginx.crt \
+              -subj "/C=BR/ST=SP/L=SaoPaulo/O=DevSecOps/OU=IT/CN=192.168.56.20"
+
+            # Carrega a imagem nova
             docker load < /home/vagrant/minha-app.tar
-           docker run -d \
-              --name webapp \
-              -p 5000:5000 \
-              --memory="256m" \
-              --cpus="0.5" \
-              --security-opt=no-new-privileges:true \
-              -e APP_PASSWORD=${{ env.APP_DB_PASS }} \
-              minha-app:latest
+            
+            # Cria arquivo .env com a senha do Vault para o Compose usar
+            echo "APP_PASSWORD=${{ env.APP_DB_PASS }}" > .env
+            
+            # Sobe os containers (Recria se mudou algo)
+            docker compose -f docker-compose.prod.yml up -d --force-recreate
+            
+            # Limpeza
             rm /home/vagrant/minha-app.tar
           EOF
-        # ------DAST-----------------------------
+
   dast-scan:
     name: Teste Dinamico (OWASP ZAP)
     runs-on: [self-hosted, local-lab]
-    needs: deploy # Só roda depois que a app está no ar!
-    
+    needs: deploy
     steps:
-      - name: Checkout do Código
-        uses: actions/checkout@v4
-
-      - name: Executar OWASP ZAP Baseline Scan
+      - name: Executar OWASP ZAP (Baseline Scan)
         run: |
-          # Rodamos o ZAP via Docker para não precisar instalar nada no Host
-          # Ele vai atacar o IP da sua VM de Produção
+          # Agora atacamos a porta 80/443!
+          # O ZAP vai reclamar do certificado autoassinado, mas vai testar
           docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-            -t http://192.168.56.20:5000 \
+            -t https://192.168.56.20 \
             -g gen.conf \
-            -r report_html.html || true 
-            # O '|| true' evita que o pipeline pare se encontrar alertas baixos, 
-            # para que possamos ver o relatório.
-            
-      - name: Upload do Relatorio DAST
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-dast
-          path: report_html.html
+            -r report_https.html \
+            -I || true 
+            # -I ignora avisos de falha (útil para self-signed)
