@@ -114,7 +114,7 @@ jobs:
             echo "APP_PASSWORD=${{ env.APP_DB_PASS }}" > .env
             
             # Sobe os containers (Recria se mudou algo)
-            docker compose -f docker-compose.prod.yml up -d --force-recreate
+            docker-compose -f docker-compose.prod.yml up -d --force-recreate
             
             # Limpeza
             rm /home/vagrant/minha-app.tar
