@@ -94,7 +94,14 @@ jobs:
           ssh vagrant@192.168.56.20 << EOF
             docker rm -f webapp || true
             docker load < /home/vagrant/minha-app.tar
-            docker run -d --name webapp -p 5000:5000 -e APP_PASSWORD=${{ env.APP_DB_PASS }} minha-app:latest
+           docker run -d \
+              --name webapp \
+              -p 5000:5000 \
+              --memory="256m" \
+              --cpus="0.5" \
+              --security-opt=no-new-privileges:true \
+              -e APP_PASSWORD=${{ env.APP_DB_PASS }} \
+              minha-app:latest
             rm /home/vagrant/minha-app.tar
           EOF
         # ------DAST-----------------------------
